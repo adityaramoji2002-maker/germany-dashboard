@@ -32,7 +32,25 @@ td { cursor: pointer; }
 <h3>{{sheet}}</h3>
 <table>
 <tr>
-{% for key in data[sheet][0].keys() %}
+{% if data[sheet] %}
+    <tr>
+        {% for key in data[sheet][0].keys() %}
+            <th>{{ key }}</th>
+        {% endfor %}
+    </tr>
+
+    {% for row in data[sheet] %}
+    <tr>
+        {% for value in row.values() %}
+            <td>{{ value }}</td>
+        {% endfor %}
+    </tr>
+    {% endfor %}
+{% else %}
+    <tr>
+        <td colspan="100%">No data available</td>
+    </tr>
+{% endif %}
 <th>{{key}}</th>
 {% endfor %}
 </tr>
