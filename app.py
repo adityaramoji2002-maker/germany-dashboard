@@ -1,59 +1,90 @@
 from flask import Flask, render_template, request, jsonify
-import pandas as pd
+import sqlite3
 import os
 
 app = Flask(__name__)
+DB_PATH = "database.db"
 
-FILE_PATH = "Germany Plan 2026.xlsx"
+
+# -----------------------------
+# INIT DATABASE
+# -----------------------------
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS dashboard (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sheet TEXT,
+        column_name TEXT,
+        value TEXT,
+        row_index INTEGER
+    )
+    """)
+
+    conn.commit()
+    conn.close()
 
 
-# Load Excel Data
+init_db()
+
+
+# -----------------------------
+# LOAD DATA
+# -----------------------------
 def load_data():
-    xl = pd.ExcelFile(FILE_PATH)
-    return {
-        sheet: xl.parse(sheet).fillna("").to_dict(orient="records")
-        for sheet in xl.sheet_names
-    }
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
 
+    cursor.execute("SELECT sheet, column_name, value, row_index FROM dashboard")
+    rows = cursor.fetchall()
 
-@app.route("/")
-def index():
-    xl = pd.ExcelFile(FILE_PATH)
-    sheets = xl.sheet_names
     data = {}
 
-    total_tasks = 0
+    for sheet, column, value, row in rows:
+        if sheet not in data:
+            data[sheet] = []
+
+        while len(data[sheet]) <= row:
+            data[sheet].append({})
+
+        data[sheet][row][column] = value
+
+    conn.close()
+    return data
+
+
+# -----------------------------
+# HOME ROUTE
+# -----------------------------
+@app.route("/")
+def index():
+    data = load_data()
+    sheets = list(data.keys())
+
+    total_tasks = sum(len(rows) for rows in data.values())
     completed_tasks = 0
     total_expense = 0
     university_status = {}
 
-    for sheet in sheets:
-        df = xl.parse(sheet).fillna("")
+    for sheet in data:
+        for row in data[sheet]:
 
-        # Store data
-        records = df.to_dict(orient="records") if not df.empty else []
-        data[sheet] = records
+            for key, value in row.items():
 
-        # Count total rows
-        total_tasks += len(df)
+                if "status" in key.lower():
+                    if str(value).lower() in ["done", "yes", "completed"]:
+                        completed_tasks += 1
 
-        # Loop through columns safely
-        for col in df.columns:
+                    if value:
+                        university_status[value] = university_status.get(value, 0) + 1
 
-            # Completed tasks logic
-            if "status" in col.lower():
-                completed_tasks += len(
-                    df[df[col].astype(str).str.lower().isin(["done", "yes", "completed"])]
-                )
-
-                # University status chart
-                for val in df[col]:
-                    if val:
-                        university_status[val] = university_status.get(val, 0) + 1
-
-            # Expense calculation
-            if "amount" in col.lower():
-                total_expense += pd.to_numeric(df[col], errors="coerce").sum()
+                if "amount" in key.lower():
+                    try:
+                        total_expense += float(value)
+                    except:
+                        pass
 
     return render_template(
         "index.html",
@@ -66,24 +97,33 @@ def index():
     )
 
 
+# -----------------------------
+# UPDATE DATA
+# -----------------------------
 @app.route("/update", methods=["POST"])
 def update():
     sheet = request.json.get("sheet")
-    row_index = request.json.get("row")
+    row = request.json.get("row")
     column = request.json.get("column")
     value = request.json.get("value")
 
-    df = pd.read_excel(FILE_PATH, sheet_name=sheet)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
 
-    df.at[row_index, column] = value
+    cursor.execute("""
+        INSERT INTO dashboard (sheet, column_name, value, row_index)
+        VALUES (?, ?, ?, ?)
+    """, (sheet, column, value, row))
 
-    with pd.ExcelWriter(FILE_PATH, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
-        df.to_excel(writer, sheet_name=sheet, index=False)
+    conn.commit()
+    conn.close()
 
-    return jsonify({"status": "success"})
+    return jsonify({"status": "saved"})
 
 
-# Run app (Render compatible)
+# -----------------------------
+# RUN
+# -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
