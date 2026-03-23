@@ -1,22 +1,30 @@
-
 <!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
 body { font-family: Arial; margin: 0; background: #eef2f7; }
-.sidebar { width: 200px; position: fixed; height: 100%; background: #111; color: white; padding: 10px; }
+.sidebar { width: 200px; position: fixed; height: 100%; background: #111; color: white; padding: 10px; overflow-y:auto; }
+.sidebar p { cursor: pointer; padding: 8px; border-radius: 5px; }
+.sidebar p:hover { background: #333; }
+
 .content { margin-left: 210px; padding: 10px; }
 .card { background: white; padding: 10px; margin-bottom: 10px; border-radius: 10px; }
+
 table { width: 100%; border-collapse: collapse; }
 td, th { border: 1px solid #ccc; padding: 6px; font-size: 12px; }
 th { background: #ddd; }
 td { cursor: pointer; }
+
+canvas { margin-bottom: 20px; }
 </style>
 </head>
+
 <body>
 
+<!-- Sidebar -->
 <div class="sidebar">
 <h3>Dashboard</h3>
 {% for sheet in sheets %}
@@ -24,59 +32,71 @@ td { cursor: pointer; }
 {% endfor %}
 </div>
 
+<!-- Main Content -->
 <div class="content">
-<canvas id="chart"></canvas>
 
+<!-- Chart -->
+<div class="card">
+<canvas id="chart"></canvas>
+</div>
+
+<!-- Sheets -->
 {% for sheet in sheets %}
 <div id="{{sheet}}" class="sheet card" style="display:none;">
 <h3>{{sheet}}</h3>
+
 <table>
-<tr>
+
 {% if data[sheet] %}
+
+    <!-- Table Header -->
     <tr>
         {% for key in data[sheet][0].keys() %}
             <th>{{ key }}</th>
         {% endfor %}
     </tr>
 
+    <!-- Table Rows -->
     {% for row in data[sheet] %}
     <tr>
-        {% for value in row.values() %}
-            <td>{{ value }}</td>
+        {% for key, value in row.items() %}
+            <td onclick="editCell(this, '{{sheet}}', {{loop.index0}}, '{{key}}')">
+                {{ value }}
+            </td>
         {% endfor %}
     </tr>
     {% endfor %}
+
 {% else %}
+
+    <!-- Empty State -->
     <tr>
         <td colspan="100%">No data available</td>
     </tr>
-{% endif %}
-<th>{{key}}</th>
-{% endfor %}
-</tr>
 
-{% for row in data[sheet] %}
-<tr>
-{% for key, value in row.items() %}
-<td onclick="editCell(this, '{{sheet}}', {{loop.index0}}, '{{key}}')">{{value}}</td>
-{% endfor %}
-</tr>
-{% endfor %}
+{% endif %}
+
 </table>
+
 </div>
 {% endfor %}
+
 </div>
 
 <script>
+
+// Show selected sheet
 function showSheet(name){
     document.querySelectorAll('.sheet').forEach(el => el.style.display='none');
     document.getElementById(name).style.display='block';
 }
 
+// Edit cell
 function editCell(td, sheet, row, column){
     let old = td.innerText;
     let input = document.createElement("input");
     input.value = old;
+
     td.innerHTML = "";
     td.appendChild(input);
     input.focus();
@@ -85,20 +105,30 @@ function editCell(td, sheet, row, column){
         fetch('/update', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({sheet:sheet,row:row,column:column,value:input.value})
+            body: JSON.stringify({
+                sheet:sheet,
+                row:row,
+                column:column,
+                value:input.value
+            })
         });
+
         td.innerText = input.value;
     }
 }
 
-// simple chart demo
+// Demo Chart (can upgrade later)
 new Chart(document.getElementById('chart'), {
     type: 'bar',
     data: {
-        labels: ['Data1','Data2','Data3'],
-        datasets: [{ label: 'Demo', data: [10,20,30]}]
+        labels: ['Tasks','Completed','Pending'],
+        datasets: [{
+            label: 'Dashboard Overview',
+            data: [10, 6, 4]
+        }]
     }
 });
+
 </script>
 
 </body>
