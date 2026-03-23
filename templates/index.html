@@ -5,77 +5,181 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body { font-family: Arial; margin: 0; background: #eef2f7; }
-.sidebar { width: 200px; position: fixed; height: 100%; background: #111; color: white; padding: 10px; overflow-y:auto; }
-.sidebar p { cursor: pointer; padding: 8px; border-radius: 5px; }
-.sidebar p:hover { background: #333; }
 
-.content { margin-left: 210px; padding: 10px; }
-.card { background: white; padding: 10px; margin-bottom: 10px; border-radius: 10px; }
+/* 🇩🇪 German Flag Background */
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(
+        to bottom,
+        #000000 33%,
+        #dd0000 33%,
+        #dd0000 66%,
+        #ffce00 66%
+    );
+    min-height: 100vh;
+}
 
-table { width: 100%; border-collapse: collapse; }
-td, th { border: 1px solid #ccc; padding: 6px; font-size: 12px; }
-th { background: #ddd; }
-td { cursor: pointer; }
+/* Glass effect */
+.glass {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(12px);
+    border-radius: 15px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
 
-canvas { margin-bottom: 20px; }
+/* Sidebar */
+.sidebar {
+    width: 220px;
+    position: fixed;
+    height: 100%;
+    padding: 15px;
+    color: white;
+}
+
+.sidebar h2 {
+    text-align: center;
+}
+
+.sidebar p {
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.sidebar p:hover {
+    background: rgba(255,255,255,0.2);
+    transform: translateX(5px);
+}
+
+/* Content */
+.content {
+    margin-left: 240px;
+    padding: 20px;
+}
+
+/* Cards */
+.cards {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.card-box {
+    flex: 1;
+    padding: 20px;
+    border-radius: 15px;
+    color: white;
+    text-align: center;
+    font-weight: bold;
+    animation: fadeUp 1s ease;
+}
+
+.card1 { background: linear-gradient(45deg, #ff512f, #dd2476); }
+.card2 { background: linear-gradient(45deg, #1d976c, #93f9b9); }
+.card3 { background: linear-gradient(45deg, #f7971e, #ffd200); color: black; }
+
+/* Table */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(255,255,255,0.9);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+td, th {
+    padding: 8px;
+    border: 1px solid #ddd;
+    font-size: 12px;
+}
+
+th {
+    background: #333;
+    color: white;
+}
+
+td:hover {
+    background: #f1f1f1;
+}
+
+/* Animations */
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.sheet {
+    animation: fadeUp 0.5s ease;
+    display: none;
+}
+
+/* Chart container */
+.chart-box {
+    margin-bottom: 20px;
+    padding: 15px;
+}
+
 </style>
 </head>
 
 <body>
 
 <!-- Sidebar -->
-<div class="sidebar">
-<h3>Dashboard</h3>
+<div class="sidebar glass">
+<h2>🇩🇪 Dashboard</h2>
 {% for sheet in sheets %}
 <p onclick="showSheet('{{sheet}}')">{{sheet}}</p>
 {% endfor %}
 </div>
 
-<!-- Main Content -->
+<!-- Content -->
 <div class="content">
 
+<!-- Cards -->
+<div class="cards">
+    <div class="card-box card1">
+        Total Tasks <br><br> {{ total_tasks }}
+    </div>
+    <div class="card-box card2">
+        Completed <br><br> {{ completed_tasks }}
+    </div>
+    <div class="card-box card3">
+        ₹ {{ total_expense }}
+    </div>
+</div>
+
 <!-- Chart -->
-<div class="card">
+<div class="glass chart-box">
 <canvas id="chart"></canvas>
 </div>
 
 <!-- Sheets -->
 {% for sheet in sheets %}
-<div id="{{sheet}}" class="sheet card" style="display:none;">
+<div id="{{sheet}}" class="glass sheet">
 <h3>{{sheet}}</h3>
 
 <table>
-
 {% if data[sheet] %}
+<tr>
+{% for key in data[sheet][0].keys() %}
+<th>{{ key }}</th>
+{% endfor %}
+</tr>
 
-    <!-- Table Header -->
-    <tr>
-        {% for key in data[sheet][0].keys() %}
-            <th>{{ key }}</th>
-        {% endfor %}
-    </tr>
-
-    <!-- Table Rows -->
-    {% for row in data[sheet] %}
-    <tr>
-        {% for key, value in row.items() %}
-            <td onclick="editCell(this, '{{sheet}}', {{loop.index0}}, '{{key}}')">
-                {{ value }}
-            </td>
-        {% endfor %}
-    </tr>
-    {% endfor %}
-
+{% for row in data[sheet] %}
+<tr>
+{% for key, value in row.items() %}
+<td onclick="editCell(this, '{{sheet}}', {{loop.index0}}, '{{key}}')">
+{{ value }}
+</td>
+{% endfor %}
+</tr>
+{% endfor %}
 {% else %}
-
-    <!-- Empty State -->
-    <tr>
-        <td colspan="100%">No data available</td>
-    </tr>
-
+<tr><td>No data available</td></tr>
 {% endif %}
-
 </table>
 
 </div>
@@ -85,7 +189,7 @@ canvas { margin-bottom: 20px; }
 
 <script>
 
-// Show selected sheet
+// Show sheet
 function showSheet(name){
     document.querySelectorAll('.sheet').forEach(el => el.style.display='none');
     document.getElementById(name).style.display='block';
@@ -105,26 +209,20 @@ function editCell(td, sheet, row, column){
         fetch('/update', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({
-                sheet:sheet,
-                row:row,
-                column:column,
-                value:input.value
-            })
+            body: JSON.stringify({sheet:sheet,row:row,column:column,value:input.value})
         });
-
         td.innerText = input.value;
     }
 }
 
-// Demo Chart (can upgrade later)
+// Chart
 new Chart(document.getElementById('chart'), {
     type: 'bar',
     data: {
-        labels: ['Tasks','Completed','Pending'],
+        labels: {{ university_status.keys()|list|tojson }},
         datasets: [{
-            label: 'Dashboard Overview',
-            data: [10, 6, 4]
+            label: 'Applications',
+            data: {{ university_status.values()|list|tojson }}
         }]
     }
 });
