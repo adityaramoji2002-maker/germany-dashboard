@@ -1,9 +1,12 @@
 from flask import Flask, render_template, request, jsonify
 import sqlite3
+import pandas as pd
 import os
 
 app = Flask(__name__)
+
 DB_PATH = "database.db"
+EXCEL_FILE = "Germany Plan 2026.xlsx"
 
 
 # -----------------------------
@@ -27,11 +30,36 @@ def init_db():
     conn.close()
 
 
-init_db()
+# -----------------------------
+# IMPORT EXCEL → DB (ONE TIME)
+# -----------------------------
+def import_excel_to_db():
+    if not os.path.exists(EXCEL_FILE):
+        print("Excel file not found, skipping import")
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    xl = pd.ExcelFile(EXCEL_FILE)
+
+    for sheet in xl.sheet_names:
+        df = xl.parse(sheet).fillna("")
+
+        for i, row in df.iterrows():
+            for col in df.columns:
+                cursor.execute("""
+                    INSERT INTO dashboard (sheet, column_name, value, row_index)
+                    VALUES (?, ?, ?, ?)
+                """, (sheet, col, str(row[col]), i))
+
+    conn.commit()
+    conn.close()
+    print("Excel data imported successfully!")
 
 
 # -----------------------------
-# LOAD DATA
+# LOAD DATA FROM DB
 # -----------------------------
 def load_data():
     conn = sqlite3.connect(DB_PATH)
@@ -70,9 +98,9 @@ def index():
 
     for sheet in data:
         for row in data[sheet]:
-
             for key, value in row.items():
 
+                # Completed tasks
                 if "status" in key.lower():
                     if str(value).lower() in ["done", "yes", "completed"]:
                         completed_tasks += 1
@@ -80,6 +108,7 @@ def index():
                     if value:
                         university_status[value] = university_status.get(value, 0) + 1
 
+                # Expense
                 if "amount" in key.lower():
                     try:
                         total_expense += float(value)
@@ -110,6 +139,13 @@ def update():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
+    # Remove old value
+    cursor.execute("""
+        DELETE FROM dashboard
+        WHERE sheet=? AND row_index=? AND column_name=?
+    """, (sheet, row, column))
+
+    # Insert new value
     cursor.execute("""
         INSERT INTO dashboard (sheet, column_name, value, row_index)
         VALUES (?, ?, ?, ?)
@@ -122,7 +158,17 @@ def update():
 
 
 # -----------------------------
-# RUN
+# INITIALIZE
+# -----------------------------
+init_db()
+
+# Import only if DB empty
+if not os.path.exists(DB_PATH) or os.stat(DB_PATH).st_size == 0:
+    import_excel_to_db()
+
+
+# -----------------------------
+# RUN (Render Compatible)
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
