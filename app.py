@@ -163,7 +163,19 @@ def update():
 init_db()
 
 # Import only if DB empty
-if not os.path.exists(DB_PATH) or os.stat(DB_PATH).st_size == 0:
+init_db()
+
+def is_db_empty():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM dashboard")
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count == 0
+
+# Import ONLY if no data
+if is_db_empty():
+    print("Database empty → importing Excel...")
     import_excel_to_db()
 
 
